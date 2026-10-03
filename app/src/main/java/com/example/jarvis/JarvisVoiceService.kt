@@ -32,7 +32,7 @@ class JarvisVoiceService : Service(), TextToSpeech.OnInitListener {
 
         val notification = Notification.Builder(this, channelId)
             .setContentTitle("JARVIS")
-            .setContentText("JARVIS background listening is active")
+            .setContentText("JARVIS is listening in the background")
             .setSmallIcon(android.R.drawable.ic_btn_speak_now)
             .setOngoing(true)
             .build()
@@ -41,195 +41,323 @@ class JarvisVoiceService : Service(), TextToSpeech.OnInitListener {
 
         tts = TextToSpeech(this, this)
 
-        startListening()
+        handler.postDelayed({
+            startListening()
+        }, 500)
+    }
+
+    override fun onStartCommand(
+        intent: Intent?,
+        flags: Int,
+        startId: Int
+    ): Int {
+
+        if (speechRecognizer == null) {
+            startListening()
+        }
+
+        return START_STICKY
     }
 
     override fun onInit(status: Int) {
+
         if (status == TextToSpeech.SUCCESS) {
-            tts?.language = Locale.US
+            tts?.language = Locale.getDefault()
+            tts?.setSpeechRate(0.95f)
         }
     }
 
     private fun startListening() {
+
+        handler.removeCallbacksAndMessages(null)
+
         handler.post {
+
             try {
+
                 speechRecognizer?.destroy()
+                speechRecognizer = null
 
                 if (!SpeechRecognizer.isRecognitionAvailable(this)) {
+                    speak("Speech recognition is not available on this phone.")
                     return@post
                 }
 
-                speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this)
+                speechRecognizer =
+                    SpeechRecognizer.createSpeechRecognizer(this)
 
                 speechRecognizer?.setRecognitionListener(
                     object : RecognitionListener {
 
-                        override fun onReadyForSpeech(params: android.os.Bundle?) {}
+                        override fun onReadyForSpeech(
+                            params: android.os.Bundle?
+                        ) {
+                        }
 
-                        override fun onBeginningOfSpeech() {}
+                        override fun onBeginningOfSpeech() {
+                        }
 
-                        override fun onRmsChanged(rmsdB: Float) {}
+                        override fun onRmsChanged(
+                            rmsdB: Float
+                        ) {
+                        }
 
-                        override fun onBufferReceived(buffer: ByteArray?) {}
+                        override fun onBufferReceived(
+                            buffer: ByteArray?
+                        ) {
+                        }
 
-                        override fun onEndOfSpeech() {}
+                        override fun onEndOfSpeech() {
+                        }
 
-                        override fun onError(error: Int) {
+                        override fun onError(
+                            error: Int
+                        ) {
+
                             restartListening()
                         }
 
                         override fun onResults(
                             results: android.os.Bundle?
                         ) {
+
                             val matches =
                                 results?.getStringArrayList(
                                     SpeechRecognizer.RESULTS_RECOGNITION
                                 )
 
-                            val text = matches
-                                ?.firstOrNull()
-                                ?.lowercase(Locale.getDefault())
-                                ?: ""
+                            val text =
+                                matches
+                                    ?.firstOrNull()
+                                    ?.lowercase(Locale.getDefault())
+                                    ?: ""
 
-                            processCommand(text)
+                            if (text.isNotBlank()) {
+                                processCommand(text)
+                            }
 
                             restartListening()
                         }
 
                         override fun onPartialResults(
                             partialResults: android.os.Bundle?
-                        ) {}
+                        ) {
+                        }
 
                         override fun onEvent(
                             eventType: Int,
                             params: android.os.Bundle?
-                        ) {}
+                        ) {
+                        }
                     }
                 )
 
-                val intent = Intent(
-                    RecognizerIntent.ACTION_RECOGNIZE_SPEECH
-                ).apply {
-                    putExtra(
-                        RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                        RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
-                    )
+                val intent =
+                    Intent(
+                        RecognizerIntent.ACTION_RECOGNIZE_SPEECH
+                    ).apply {
 
-                    putExtra(
-                        RecognizerIntent.EXTRA_LANGUAGE,
-                        Locale.getDefault()
-                    )
+                        putExtra(
+                            RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                            RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
+                        )
 
-                    putExtra(
-                        RecognizerIntent.EXTRA_PARTIAL_RESULTS,
-                        false
-                    )
-                }
+                        putExtra(
+                            RecognizerIntent.EXTRA_LANGUAGE,
+                            Locale.getDefault()
+                        )
+
+                        putExtra(
+                            RecognizerIntent.EXTRA_PARTIAL_RESULTS,
+                            false
+                        )
+                    }
 
                 speechRecognizer?.startListening(intent)
 
             } catch (_: Exception) {
+
                 restartListening()
             }
         }
     }
 
     private fun restartListening() {
+
         handler.removeCallbacksAndMessages(null)
 
         handler.postDelayed(
             {
                 startListening()
             },
-            1000
+            1500
         )
     }
 
     private fun processCommand(text: String) {
 
-        if (text.isBlank()) {
-            return
-        }
-
-        val command = text
-            .replace("hey jarvis", "")
-            .replace("hey jarvis", "")
+        val cleaned = text
+            .replace(
+                "hey jarvis",
+                "",
+                ignoreCase = true
+            )
+            .replace(
+                "jarvis",
+                "",
+                ignoreCase = true
+            )
             .trim()
 
-        if (text.contains("hey jarvis")) {
+        if (
+            text.contains(
+                "hey jarvis",
+                ignoreCase = true
+            ) ||
+            text.contains(
+                "jarvis",
+                ignoreCase = true
+            )
+        ) {
 
-            if (command.isBlank()) {
+            if (cleaned.isBlank()) {
+
                 speak("Yes, I am listening.")
+
                 return
             }
 
-            executeCommand(command)
+            executeCommand(cleaned)
         }
     }
 
-    private fun executeCommand(command: String) {
+    private fun executeCommand(
+        command: String
+    ) {
+
+        val c =
+            command.lowercase(Locale.getDefault())
 
         when {
 
-            command.contains("hello") ||
-            command.contains("hi") -> {
-                speak("Hello. How can I help you?")
-            }
+            c.contains("hello") ||
+            c == "hi" -> {
 
-            command.contains("time") -> {
-                val time = java.text.SimpleDateFormat(
-                    "hh:mm a",
-                    Locale.getDefault()
-                ).format(java.util.Date())
-
-                speak("The time is $time")
-            }
-
-            command.contains("date") -> {
-                val date = java.text.SimpleDateFormat(
-                    "dd MMMM yyyy",
-                    Locale.getDefault()
-                ).format(java.util.Date())
-
-                speak("Today is $date")
-            }
-
-            command.contains("youtube") -> {
-                openUrl("https://www.youtube.com")
-            }
-
-            command.contains("google") ||
-            command.contains("search") -> {
-                openUrl(
-                    "https://www.google.com/search?q=" +
-                            android.net.Uri.encode(command)
+                speak(
+                    "Hello. How can I help you?"
                 )
             }
 
+            c.contains("time") ||
+            c.contains("waqt") -> {
+
+                val time =
+                    java.text.SimpleDateFormat(
+                        "hh:mm a",
+                        Locale.getDefault()
+                    ).format(
+                        java.util.Date()
+                    )
+
+                speak(
+                    "The time is $time"
+                )
+            }
+
+            c.contains("date") ||
+            c.contains("today") ||
+            c.contains("tareekh") -> {
+
+                val date =
+                    java.text.SimpleDateFormat(
+                        "dd MMMM yyyy",
+                        Locale.getDefault()
+                    ).format(
+                        java.util.Date()
+                    )
+
+                speak(
+                    "Today is $date"
+                )
+            }
+
+            c.contains("youtube") -> {
+
+                openUrl(
+                    "https://www.youtube.com"
+                )
+            }
+
+            c.contains("google") ||
+            c.contains("search") -> {
+
+                val query =
+                    c.replace(
+                        "search",
+                        ""
+                    ).replace(
+                        "google",
+                        ""
+                    ).trim()
+
+                if (query.isNotBlank()) {
+
+                    openUrl(
+                        "https://www.google.com/search?q=" +
+                                android.net.Uri.encode(
+                                    query
+                                )
+                    )
+
+                } else {
+
+                    speak(
+                        "What should I search for?"
+                    )
+                }
+            }
+
             else -> {
-                speak("I heard you say $command")
+
+                speak(
+                    "I heard you say $command"
+                )
             }
         }
     }
 
-    private fun openUrl(url: String) {
-        try {
-            val intent = Intent(
-                Intent.ACTION_VIEW,
-                android.net.Uri.parse(url)
-            )
+    private fun openUrl(
+        url: String
+    ) {
 
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        try {
+
+            val intent =
+                Intent(
+                    Intent.ACTION_VIEW,
+                    android.net.Uri.parse(url)
+                )
+
+            intent.addFlags(
+                Intent.FLAG_ACTIVITY_NEW_TASK
+            )
 
             startActivity(intent)
 
         } catch (_: Exception) {
-            speak("I couldn't open that.")
+
+            speak(
+                "I couldn't open that."
+            )
         }
     }
 
-    private fun speak(text: String) {
+    private fun speak(
+        text: String
+    ) {
+
         handler.post {
+
             tts?.speak(
                 text,
                 TextToSpeech.QUEUE_FLUSH,
@@ -241,27 +369,37 @@ class JarvisVoiceService : Service(), TextToSpeech.OnInitListener {
 
     private fun createNotificationChannel() {
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        if (
+            Build.VERSION.SDK_INT >=
+            Build.VERSION_CODES.O
+        ) {
 
-            val channel = NotificationChannel(
-                channelId,
-                "JARVIS Background",
-                NotificationManager.IMPORTANCE_LOW
-            )
+            val channel =
+                NotificationChannel(
+                    channelId,
+                    "JARVIS Background",
+                    NotificationManager.IMPORTANCE_LOW
+                )
 
             channel.description =
                 "JARVIS background voice assistant"
 
             val manager =
-                getSystemService(NotificationManager::class.java)
+                getSystemService(
+                    NotificationManager::class.java
+                )
 
-            manager.createNotificationChannel(channel)
+            manager.createNotificationChannel(
+                channel
+            )
         }
     }
 
     override fun onDestroy() {
 
-        handler.removeCallbacksAndMessages(null)
+        handler.removeCallbacksAndMessages(
+            null
+        )
 
         speechRecognizer?.destroy()
         speechRecognizer = null
@@ -273,7 +411,10 @@ class JarvisVoiceService : Service(), TextToSpeech.OnInitListener {
         super.onDestroy()
     }
 
-    override fun onBind(intent: Intent?): IBinder? {
+    override fun onBind(
+        intent: Intent?
+    ): IBinder? {
+
         return null
     }
 }
